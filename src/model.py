@@ -63,7 +63,8 @@ class Model:
             self.output, num_outputs=self.fc_hidd_size,
             activation_fn=tf.nn.relu, weights_initializer=tf.contrib.layers.xavier_initializer())
         self.pred = tf.contrib.layers.fully_connected(
-            self.f0, num_outputs=1, weights_initializer=tf.contrib.layers.xavier_initializer())
+            self.f0, num_outputs=1, activation_fn=None,
+            weights_initializer=tf.contrib.layers.xavier_initializer())
         self.pred_masked = tf.mul(self.pred, self.target_mask)
         
         '''Loss'''
