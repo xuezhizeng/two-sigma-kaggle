@@ -167,4 +167,39 @@ class Model:
             feat, tar, mask = np.array(feat), np.expand_dims(np.array(tar), 2), np.expand_dims(np.array(mask), 2)
             
             loss = self.train_on_batch(session, feat, tar, mask, ln)
-            yield loss[0]
+            yield loss
+
+    def fit_on_sample(self, session, input_df, num_epoch, batch_size):
+        '''
+        This function is specific to the two_sigma competition. It receives a dataframe and prepares all the required inputs (sequence, sequence_targets, target_mask, sequence_length) for training the model. At each iteration, it selects a set of random instruments of size batch_size and calls the train_on_batch function.
+        
+        Inputs:
+        - session: A TF session
+        - input_df: A pandas dataframe containing the features, 'id', 'y', and 'timestamp' columns
+        - num_epoch: An integer denoting the number passes over all the training data
+        - batch_szie: An integer denoting the number of streams to be passed at each iteration
+        '''
+        examples = {}
+        for _id, df in input_df.groupby('id'):
+            exp = []
+            exp.append(df.drop(['id', 'y'], axis=1).values)
+            exp.append(df['y'].values)
+            exp.append(df.shape[0])
+            examples[_id] = exp
+                
+        keys = examples.keys()
+        num_seq = len(keys)
+        num_batch = ((num_seq / batch_size) + 1) * num_epoch
+        
+        for _ in range(num_batch):
+            batch = [examples[k] for k in keys]
+            X, y, ln = zip(*batch)
+            
+            max_len = max(ln)
+            feat = [np.pad(s, ((0, max_len - s.shape[0]), (0, 0)), 'constant') for s in X]
+            tar = [np.pad(t, ((0, max_len - t.shape[0])), 'constant') for t in y]
+            mask = [np.pad(np.ones_like(t), ((0, max_len - t.shape[0])), 'constant') for t in y]
+            feat, tar, mask = np.array(feat), np.expand_dims(np.array(tar), 2), np.expand_dims(np.array(mask), 2)
+            
+            loss = self.train_on_batch(session, feat, tar, mask, ln)
+            yield loss
