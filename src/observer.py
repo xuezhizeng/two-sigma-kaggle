@@ -26,6 +26,6 @@ class Observer:
         X = np.expand_dims(df.drop(['id', 'y'], axis=1).values, axis=1)
         l = np.ones(X.shape[0])
         
-        pred, new_state = M.predict(session, X, l, state)
+        pred, new_state = M.predict_on_batch(sess, X, l, state)
         self.update_state(ids, new_state)
         return pred

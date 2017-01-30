@@ -109,7 +109,7 @@ class Model:
         loss, _ = session.run([self.loss, self.optimizer], feed_dict=feed_dict)
         return loss
     
-    def predict(self, session, sequence, sequence_length, initial_state=None):
+    def predict_on_batch(self, session, sequence, sequence_length, initial_state=None):
         '''
         Inputs:
         - session: A TF session
@@ -133,7 +133,7 @@ class Model:
         pred, state = session.run([self.pred, self.state], feed_dict=feed_dict)
         return pred, state        
         
-    def fit(self, session, input_df, num_epoch, batch_size):
+    def fit(self, session, input_df, num_epoch, batch_size=32):
         '''
         This function is specific to the two_sigma competition. It receives a dataframe and prepares all the required inputs (sequence, sequence_targets, target_mask, sequence_length) for training the model. At each iteration, it selects a set of random instruments of size batch_size and calls the train_on_batch function.
         
@@ -152,54 +152,24 @@ class Model:
             examples[_id] = exp
                 
         keys = examples.keys()
-        num_seq = len(keys)
-        num_batch = ((num_seq / batch_size) + 1) * num_epoch
-        
-        for _ in range(num_batch):
-            batch_keys = np.random.choice(keys, batch_size, False)
-            batch = [examples[k] for k in batch_keys]
-            X, y, ln = zip(*batch)
+        num_baches = 1
+        if batch_size != 'all':
+            num_baches = len(keys) / batch_size
+        for i_epoch in range(num_epoch):
+            np.random.shuffle(keys)
+            batch_keys = [keys]
+            if batch_size != 'all':
+                batch_keys = np.array_split(keys, num_baches)
             
-            max_len = max(ln)
-            feat = [np.pad(s, ((0, max_len - s.shape[0]), (0, 0)), 'constant') for s in X]
-            tar = [np.pad(t, ((0, max_len - t.shape[0])), 'constant') for t in y]
-            mask = [np.pad(np.ones_like(t), ((0, max_len - t.shape[0])), 'constant') for t in y]
-            feat, tar, mask = np.array(feat), np.expand_dims(np.array(tar), 2), np.expand_dims(np.array(mask), 2)
-            
-            loss = self.train_on_batch(session, feat, tar, mask, ln)
-            yield loss
+            for i_batch, bk in enumerate(batch_keys):
+                batch = [examples[k] for k in bk]
+                X, y, ln = zip(*batch)
 
-    def fit_on_sample(self, session, input_df, num_epoch, batch_size):
-        '''
-        This function is specific to the two_sigma competition. It receives a dataframe and prepares all the required inputs (sequence, sequence_targets, target_mask, sequence_length) for training the model. At each iteration, it selects a set of random instruments of size batch_size and calls the train_on_batch function.
-        
-        Inputs:
-        - session: A TF session
-        - input_df: A pandas dataframe containing the features, 'id', 'y', and 'timestamp' columns
-        - num_epoch: An integer denoting the number passes over all the training data
-        - batch_szie: An integer denoting the number of streams to be passed at each iteration
-        '''
-        examples = {}
-        for _id, df in input_df.groupby('id'):
-            exp = []
-            exp.append(df.drop(['id', 'y'], axis=1).values)
-            exp.append(df['y'].values)
-            exp.append(df.shape[0])
-            examples[_id] = exp
-                
-        keys = examples.keys()
-        num_seq = len(keys)
-        num_batch = ((num_seq / batch_size) + 1) * num_epoch
-        
-        for _ in range(num_batch):
-            batch = [examples[k] for k in keys]
-            X, y, ln = zip(*batch)
-            
-            max_len = max(ln)
-            feat = [np.pad(s, ((0, max_len - s.shape[0]), (0, 0)), 'constant') for s in X]
-            tar = [np.pad(t, ((0, max_len - t.shape[0])), 'constant') for t in y]
-            mask = [np.pad(np.ones_like(t), ((0, max_len - t.shape[0])), 'constant') for t in y]
-            feat, tar, mask = np.array(feat), np.expand_dims(np.array(tar), 2), np.expand_dims(np.array(mask), 2)
-            
-            loss = self.train_on_batch(session, feat, tar, mask, ln)
-            yield loss
+                max_len = max(ln)
+                feat = [np.pad(s, ((0, max_len - s.shape[0]), (0, 0)), 'constant') for s in X]
+                tar = [np.pad(t, ((0, max_len - t.shape[0])), 'constant') for t in y]
+                mask = [np.pad(np.ones_like(t), ((0, max_len - t.shape[0])), 'constant') for t in y]
+                feat, tar, mask = np.array(feat), np.expand_dims(np.array(tar), 2), np.expand_dims(np.array(mask), 2)
+
+                loss = self.train_on_batch(session, feat, tar, mask, ln)
+                yield i_epoch, i_batch, loss
